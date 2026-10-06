@@ -1,4 +1,7 @@
 import sys
+import os
+import time
+import copy
 import tkinter as tk
 import webbrowser
 from tkinter import messagebox, ttk
@@ -8,6 +11,7 @@ from core import config, install, rules
 from core.branding import COLORS as C
 from core.winutil import IS_WINDOWS
 from ui.dialogs import AddTimeDialog, PinDialog
+from ui.management import ManagementMixin
 from ui.widgets import Header, button, card, chip, entry, label
 
 QUICK_SITES = ["youtube.com", "tiktok.com", "instagram.com", "snapchat.com", "facebook.com",
@@ -16,19 +20,20 @@ UNITS = {"Minutes": 60, "Hours": 3600, "Days": 86400}
 MAX_PIN_TRIES = 5
 
 
-class App(tk.Tk):
+class App(ManagementMixin, tk.Tk):
     def __init__(self):
         super().__init__()
         self.withdraw()
         self.title("%s  ·  by %s" % (B.APP_NAME, B.AUTHOR))
         self.configure(bg=C["bg"])
-        self.geometry("1000x720")
-        self.minsize(960, 680)
+        self.geometry("1160x820")
+        self.minsize(1100, 780)
         self.cfg = None
         self.first_run = False
         self._icon_ref = None
         self._ticks = 0
         self._installed = False
+        self._saved_cfg = None
         self._style()
         self._icon()
 
@@ -102,6 +107,7 @@ class App(tk.Tk):
 
     # ------------------------------------------------------------------- UI
     def build(self):
+        self._saved_cfg = copy.deepcopy(self.cfg)
         Header(self, B.APP_NAME, B.TAGLINE, "v" + B.VERSION).pack(fill="x")
         self._build_status()
         nb = ttk.Notebook(self)
@@ -109,7 +115,10 @@ class App(tk.Tk):
         tab1 = tk.Frame(nb, bg=C["bg"])
         tab2 = tk.Frame(nb, bg=C["bg"])
         nb.add(tab1, text="  Blocked websites  ")
+        tab3 = tk.Frame(nb, bg=C["bg"])
+        nb.add(tab3, text="  Lists & diagnostics  ")
         nb.add(tab2, text="  Settings  ")
+        self.build_tools(tab3)
         self._build_sites_tab(tab1)
         self._build_settings_tab(tab2)
         self.refresh_all()
@@ -190,6 +199,12 @@ class App(tk.Tk):
                            activeforeground=C["text"], font=("Segoe UI", 9),
                            highlightthickness=0, bd=0).grid(row=0, column=i, padx=(0, 2))
 
+        self.related_var = tk.BooleanVar(value=True)
+        tk.Checkbutton(left, text="Include related service domains", variable=self.related_var,
+                       bg=C["panel"], fg=C["text"], selectcolor=C["panel2"],
+                       activebackground=C["panel"], activeforeground=C["text"]).pack(anchor="w", pady=(12, 0), **pad)
+        label(left, "Browser rules include all subdomains.\nURLs block the whole domain, not a page.",
+              muted=True, size=9, justify="left").pack(anchor="w", **pad)
         button(left, "Block website", self.add_block).pack(fill="x", pady=(18, 6), **pad)
         self.toast = label(left, "", size=9)
         self.toast.pack(anchor="w", pady=(0, 16), **pad)
@@ -198,6 +213,13 @@ class App(tk.Tk):
         # ---- right: list
         right = card(tab, "Blocked websites")
         right.grid(row=0, column=1, sticky="nsew", pady=12)
+        self.search_var = tk.StringVar()
+        search = entry(right, self.search_var, font_size=10)
+        search.pack(fill="x", padx=18, pady=(0, 8))
+        label(right, "Filter by domain", muted=True, size=9).pack(anchor="w", padx=18)
+        self.search_var.trace_add("write", lambda *_: self.refresh_rules())
+        self.stats_label = label(right, "", muted=True, size=9)
+        self.stats_label.pack(anchor="w", padx=18, pady=(0, 8))
         wrap = tk.Frame(right, bg=C["panel"])
         wrap.pack(fill="both", expand=True, padx=18)
         cols = ("site", "rule", "status")
@@ -209,6 +231,7 @@ class App(tk.Tk):
         self.tree.configure(yscrollcommand=sb.set)
         self.tree.pack(side="left", fill="both", expand=True)
         sb.pack(side="right", fill="y")
+        self.tree.bind("<Double-1>", lambda event: self.edit_rule())
         self.tree.tag_configure("on", foreground=C["danger"])
         self.tree.tag_configure("off", foreground=C["muted"])
         self.empty_lbl = label(right, "Nothing blocked yet.\nAdd a website on the left.",
@@ -216,6 +239,8 @@ class App(tk.Tk):
         btns = tk.Frame(right, bg=C["panel"])
         btns.pack(fill="x", padx=18, pady=14)
         button(btns, "＋ Add time", self.add_time, "ghost").pack(side="left")
+        button(btns, "Pause / resume", self.toggle_rule, "ghost").pack(side="left", padx=6)
+        button(btns, "Coverage", self.coverage_details, "ghost").pack(side="left")
         button(btns, "Unblock", self.remove_block, "danger").pack(side="left", padx=8)
 
     def _build_settings_tab(self, tab):
@@ -229,8 +254,13 @@ class App(tk.Tk):
 
         c2 = card(tab, "Browser protection")
         c2.grid(row=1, column=0, sticky="ew", pady=(12, 0))
+        self.browser_var = tk.BooleanVar(value=bool(self.cfg.get("browser_blocking", True)))
+        tk.Checkbutton(c2, text="Block websites and ALL subdomains using browser policies",
+                       variable=self.browser_var, command=self._browser_toggled, bg=C["panel"],
+                       fg=C["text"], selectcolor=C["panel2"], activebackground=C["panel"],
+                       activeforeground=C["text"]).pack(anchor="w", **pad)
         self.doh_var = tk.BooleanVar(value=bool(self.cfg.get("disable_doh", True)))
-        tk.Checkbutton(c2, text="Stop browsers from skipping blocks with “Secure DNS” (recommended)",
+        tk.Checkbutton(c2, text="Disable Secure DNS in supported browsers (additional protection)",
                        variable=self.doh_var, command=self._doh_toggled, bg=C["panel"],
                        fg=C["text"], selectcolor=C["panel2"], activebackground=C["panel"],
                        activeforeground=C["text"], font=("Segoe UI", 10),
@@ -274,8 +304,11 @@ class App(tk.Tk):
     def _save(self):
         try:
             config.save_config(self.cfg)
+            self._saved_cfg = copy.deepcopy(self.cfg)
             return True
         except Exception as e:
+            if self._saved_cfg is not None:
+                self.cfg = copy.deepcopy(self._saved_cfg)
             messagebox.showerror(B.APP_NAME, "Could not save settings:\n%s" % e)
             return False
 
@@ -296,10 +329,10 @@ class App(tk.Tk):
         if mode == "timer":
             try:
                 secs = int(float(self.amount_var.get()) * UNITS[self.unit_var.get()])
-                if secs <= 0:
+                if not 0 < secs <= 31536000:
                     raise ValueError
-            except ValueError:
-                return self._say("Enter a time greater than 0.", ok=False)
+            except (ValueError, OverflowError):
+                return self._say("Enter a time from 1 second to 365 days.", ok=False)
             extra = {"duration": secs}
         elif mode == "schedule":
             try:
@@ -313,6 +346,7 @@ class App(tk.Tk):
             extra = {"start": self.start_var.get().strip(), "end": self.end_var.get().strip(),
                      "days": days}
 
+        extra["include_related"] = self.related_var.get()
         old = [r for r in self.cfg["rules"] if r["domain"] == domain]
         if old and not messagebox.askyesno(B.APP_NAME, "%s is already blocked. Replace the rule?" % domain):
             return
@@ -321,7 +355,7 @@ class App(tk.Tk):
         if self._save():
             self.site_var.set("")
             self.refresh_rules()
-            self._say("✓ %s will be blocked within a few seconds." % domain)
+            self._say("Saved. Check service health; restart browsers.")
 
     def add_time(self):
         r = self._selected_rule()
@@ -360,9 +394,15 @@ class App(tk.Tk):
             if self._save():
                 messagebox.showinfo(B.APP_NAME, "PIN changed.")
 
+    def _browser_toggled(self):
+        self.cfg["browser_blocking"] = bool(self.browser_var.get())
+        if not self._save():
+            self.browser_var.set(self.cfg.get("browser_blocking", True))
+
     def _doh_toggled(self):
         self.cfg["disable_doh"] = bool(self.doh_var.get())
-        self._save()
+        if not self._save():
+            self.doh_var.set(self.cfg.get("disable_doh", True))
 
     def install_protection(self):
         if not IS_WINDOWS:
@@ -393,7 +433,11 @@ class App(tk.Tk):
         state = config.load_state()["used"]
         sel = self.tree.selection()
         self.tree.delete(*self.tree.get_children())
+        active_count = sum(rules.is_active(r, state.get(r["id"], 0)) for r in self.cfg["rules"])
+        self.stats_label.configure(text=f"{len(self.cfg['rules'])} rules  ·  {active_count} active  ·  Double-click to edit; Coverage shows domains")
         for r in self.cfg["rules"]:
+            if self.search_var.get().lower() not in r["domain"]:
+                continue
             used = state.get(r["id"], 0.0)
             try:
                 active = rules.is_active(r, used)
@@ -421,6 +465,17 @@ class App(tk.Tk):
         else:
             color, text, sub, btn = C["danger"], "Protection is OFF", \
                 "Blocks only work once the background service is installed", "Install protection"
+        if running:
+            try:
+                health = config.read_json(os.path.join(config.data_dir(), "health.json"), {})
+                if time.time() - health.get("updated", 0) > 20:
+                    color, text, sub = C["warn"], "Service starting / unresponsive", "No recent enforcement heartbeat"
+                elif not health.get("ok"):
+                    color, text, sub = C["danger"], "Protection needs attention", health.get("error", "See diagnostics")[:80]
+                else:
+                    sub = "%s exact hosts · %s domain roots · browser restart may be needed" % (health.get("hosts", 0), health.get("domains", 0))
+            except (OSError, ValueError):
+                color, text, sub = C["warn"], "Health unavailable", "Open diagnostics"
         self.dot.itemconfigure(self.dot_item, fill=color)
         self.status_lbl.configure(text=text)
         self.status_sub.configure(text=sub)
@@ -438,8 +493,14 @@ class App(tk.Tk):
 
     def _tick(self):
         self._ticks += 1
-        self.refresh_all()
-        self.after(2000, self._tick)
+        try:
+            self.refresh_all()
+        except Exception as exc:
+            self.status_lbl.configure(text="Status check failed")
+            self.status_sub.configure(text=str(exc)[:90])
+            self.dot.itemconfigure(self.dot_item, fill=C["warn"])
+        finally:
+            self.after(2000, self._tick)
 
 
 def run_gui():

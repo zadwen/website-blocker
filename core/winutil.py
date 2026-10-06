@@ -12,6 +12,7 @@ def run_hidden(cmd, **kw):
     """Run a command without ever flashing a console window."""
     kw.setdefault("capture_output", True)
     kw.setdefault("text", True)
+    kw.setdefault("timeout", 30)
     if IS_WINDOWS:
         kw["creationflags"] = kw.get("creationflags", 0) | CREATE_NO_WINDOW
     return subprocess.run(cmd, **kw)

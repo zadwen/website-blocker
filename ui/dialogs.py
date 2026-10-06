@@ -103,9 +103,9 @@ class AddTimeDialog(_Modal):
     def _ok(self):
         try:
             secs = int(float(self.amount.get()) * self.UNITS[self.unit.get()])
-            if secs <= 0:
+            if not 0 < secs <= 31536000:
                 raise ValueError
-        except ValueError:
+        except (ValueError, OverflowError):
             return self.err.configure(text="Enter a number greater than 0.")
         self.result = secs
         self.destroy()

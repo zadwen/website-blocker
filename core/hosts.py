@@ -5,9 +5,9 @@ The hosts file is consulted *before* DNS, so the block works on any network
 """
 import os
 import re
-import stat
 import time
 
+from . import config
 from .winutil import IS_WINDOWS, run_hidden
 
 BEGIN_MARK = "# >>> WEBSITE-BLOCKER BEGIN"
@@ -36,6 +36,9 @@ def strip_block(text):
     out, skipping = [], False
     for line in text.splitlines():
         s = line.strip()
+        if s.startswith(END_MARK):
+            skipping = False
+            continue
         if s.startswith(BEGIN_MARK):
             skipping = True
             continue
@@ -52,7 +55,11 @@ def strip_block(text):
 
 def build_block(hostnames):
     lines = [BEGIN_MARK + " (managed - do not edit) >>>"]
-    for h in hostnames:
+    for h in sorted(set(hostnames)):
+        from .rules import normalize_domain
+        normalize_domain(h)  # reject newline / hosts injection at the write boundary
+        if any(c.isspace() for c in h) or ":" in h or "/" in h:
+            raise ValueError("Invalid hosts entry")
         lines.append("0.0.0.0 " + h)
         lines.append(":: " + h)
     lines.append(END_MARK + " <<<")
@@ -75,12 +82,10 @@ def _write(path, text):
     last = None
     for _ in range(6):
         try:
-            try:
-                os.chmod(path, stat.S_IREAD | stat.S_IWRITE)
-            except OSError:
-                pass
             with open(path, "wb") as f:
                 f.write(data)
+                f.flush()
+                os.fsync(f.fileno())
             return
         except PermissionError as e:
             last = e
@@ -100,6 +105,13 @@ def apply(hostnames):
     new = render(current, sorted(hostnames))
     if new == current:
         return False
+    config.ensure_data_dir()
+    backup = os.path.join(config.data_dir(), "hosts-before-install.txt")
+    try:
+        with open(backup, "xb") as f:
+            f.write(current.encode("utf-8", errors="surrogateescape"))
+    except FileExistsError:
+        pass
     _write(path, new)
     flush_dns()
     return True

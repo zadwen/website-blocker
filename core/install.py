@@ -9,7 +9,7 @@ import tempfile
 import time
 from xml.sax.saxutils import escape
 
-from . import config, doh, hosts
+from . import config, policies, hosts
 from .daemon import MUTEX_NAME
 from .winutil import CREATE_NO_WINDOW, DETACHED_PROCESS, IS_WINDOWS, run_hidden
 
@@ -148,10 +148,18 @@ def install():
     """Install or repair. Needs administrator rights."""
     if not IS_WINDOWS:
         raise RuntimeError("The background service only works on Windows.")
+    if not getattr(sys, "frozen", False):
+        raise RuntimeError("Build and run WebsiteBlocker.exe to install the SYSTEM task. Source preview cannot install a privileged task.")
     config.ensure_data_dir()
     config.lock_down(config.data_dir())
 
-    _schtasks("/end", "/tn", TASK_NAME)  # ignore errors (may not exist yet)
+    _schtasks("/end", "/tn", TASK_NAME)  # may not exist yet
+    for _ in range(40):
+        if not daemon_running():
+            break
+        time.sleep(0.25)
+    else:
+        raise RuntimeError("Could not stop the old service. Restart Windows and retry.")
     if getattr(sys, "frozen", False):
         _copy_exe()
     command, arguments = _service_command()
@@ -165,21 +173,28 @@ def install():
             errors.append(str(e))
     else:
         raise RuntimeError("Could not create the startup task:\n\n" + "\n\n".join(errors))
-    _schtasks("/run", "/tn", TASK_NAME)
+    result = _schtasks("/run", "/tn", TASK_NAME)
+    if result.returncode:
+        raise RuntimeError("Task created but failed to start: " + (result.stderr or result.stdout))
 
 
 def uninstall():
     """Remove the service, every block, browser policies and all files."""
     if not IS_WINDOWS:
         raise RuntimeError("Windows only.")
-    _schtasks("/end", "/tn", TASK_NAME)
-    _schtasks("/delete", "/tn", TASK_NAME, "/f")
-    time.sleep(1)
+    if is_installed():
+        _schtasks("/end", "/tn", TASK_NAME)
+        result = _schtasks("/delete", "/tn", TASK_NAME, "/f")
+        if result.returncode:
+            raise RuntimeError("Could not remove startup task; no backups were deleted.")
+    for _ in range(20):
+        if not daemon_running():
+            break
+        time.sleep(0.25)
+    else:
+        raise RuntimeError("Background process is still running; restart Windows and retry removal.")
     hosts.apply([])
-    try:
-        doh.apply(False)
-    except Exception:
-        pass
+    policies.restore()  # Never delete recovery data if restoration fails.
     cmd = 'ping -n 4 127.0.0.1 >nul & rmdir /s /q "%s" & rmdir /s /q "%s"' % (
         INSTALL_DIR, config.data_dir())
     subprocess.Popen(["cmd", "/c", cmd], creationflags=CREATE_NO_WINDOW | DETACHED_PROCESS,

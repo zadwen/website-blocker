@@ -3,8 +3,8 @@
 APP_NAME = "Website Blocker"
 APP_ID = "WebsiteBlocker"
 AUTHOR = "zadwen"
-VERSION = "1.0.0"
-TAGLINE = "Parental control  ·  by zadwen"
+VERSION = "2.0.0"
+TAGLINE = "Website & domain control  ·  by zadwen"
 REPO_URL = "https://github.com/zadwen/website-blocker"
 
 COLORS = {
