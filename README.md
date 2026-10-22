@@ -1,3 +1,13 @@
+## New: macOS + phone controller
+
+A macOS background service and mobile web app are now included. Block YouTube, gaming and social sites from your iPhone/Android phone, add custom domains, set focus timers/weekly schedules, and pause or resume rules remotely.
+
+**[Mac installation and phone setup →](docs/MACOS_PHONE_SETUP.md)**
+
+The included Mac `.app` launches the dashboard. Private remote access uses Tailscale Serve; there is no App Store download. Requires a root-owned Python 3.11+ installation on the Mac. Automated tests cover controller logic and isolated backend behavior; native installation/browser blocking still require the linked real-Mac checklist. Existing Windows instructions follow below.
+
+---
+
 # Website Blocker 2.0 · by zadwen
 
 A Windows desktop tool for restricting websites and their domains. Local-only configuration,

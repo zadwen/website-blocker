@@ -1,5 +1,6 @@
 """Conservative, offline service bundles. Never block a shared CDN root."""
 BUNDLES = {
+    'steampowered.com': ('steampowered.com', 'store.steampowered.com', 'steamcommunity.com', 'steamstatic.com', 'steamcontent.com'),
     'youtube.com': ('youtube.com', 'youtu.be', 'youtube-nocookie.com', 'googlevideo.com', 'ytimg.com', 'youtubei.googleapis.com'),
     'facebook.com': ('facebook.com', 'fb.com', 'fb.watch', 'messenger.com', 'fbcdn.net'),
     'instagram.com': ('instagram.com', 'cdninstagram.com'),
@@ -15,7 +16,7 @@ BUNDLES = {
 PRESETS = {
     'Social media': ('facebook.com', 'instagram.com', 'x.com', 'tiktok.com', 'snapchat.com', 'reddit.com'),
     'Video & streaming': ('youtube.com', 'twitch.tv', 'netflix.com'),
-    'Gaming & chat': ('roblox.com', 'discord.com', 'store.steampowered.com', 'epicgames.com'),
+    'Gaming & chat': ('roblox.com', 'discord.com', 'store.steampowered.com', 'epicgames.com', 'poki.com', 'crazygames.com', 'itch.io'),
 }
 
 

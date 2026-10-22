@@ -7,6 +7,11 @@ import sys
 
 
 def main():
+    if sys.platform == "darwin":
+        import webbrowser
+        webbrowser.open("http://127.0.0.1:8765")
+        return
+
     if "--daemon" in sys.argv[1:]:
         from core.daemon import run
         run()
