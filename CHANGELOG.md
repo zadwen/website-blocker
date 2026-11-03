@@ -1,3 +1,12 @@
+## 3.0.1 — Blocking reliability
+
+- Preserve existing Windows protection when both the primary settings and recovery backup are missing or invalid; report a health error until valid settings are restored.
+- Reject URL fragments, credentials, wildcards, control characters, and other non-hostname syntax at the hosts-file write boundary. URL and international-domain input remain supported through normal rule entry.
+- Retry failed macOS DNS cache refreshes even when managed files already match the desired state.
+- Reject duplicate macOS rule IDs and malformed Windows configuration objects.
+- Restore the documented Windows EXE build workflow, including tests before packaging and a downloadable Actions artifact.
+- Add six regression tests covering validation, recovery, and DNS-refresh retries.
+
 ## 3.0.0 — macOS and mobile companion
 
 - Add macOS launchd service, installer/recovery CLI and Applications launcher.

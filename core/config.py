@@ -85,7 +85,9 @@ def read_json(path, default):
 
 def validate_config(cfg):
     from .rules import validate_rule, domain_roots
-    if cfg.get("version", 1) not in (1, 2):
+    if not isinstance(cfg, dict):
+        raise ValueError("Settings must be an object.")
+    if type(cfg.get("version", 1)) is not int or cfg.get("version", 1) not in (1, 2):
         raise ValueError("Unsupported settings version.")
     if not isinstance(cfg.get("rules"), list) or len(cfg["rules"]) > 500:
         raise ValueError("At most 500 rules are supported.")

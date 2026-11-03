@@ -71,7 +71,7 @@ def run():
     state = config.load_state()
     try:
         last_good_cfg = config.validate_config(config.read_json(
-            os.path.join(config.data_dir(), "last-good-config.json"), config.DEFAULT_CONFIG))
+            os.path.join(config.data_dir(), "last-good-config.json"), None))
     except Exception:
         last_good_cfg = None
     last_tick = time.monotonic()

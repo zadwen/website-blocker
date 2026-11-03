@@ -35,6 +35,7 @@ class Backend:
         self.hosts = Path(hosts).resolve()
         self.resolver = Path(resolver)
         self.flush = flush
+        self._flush_pending = False
 
     def apply(self, roots, hostnames):
         fresh = not self.resolver.exists()
@@ -57,11 +58,13 @@ class Backend:
             if not path.exists() or path.read_bytes() != content:
                 atomic_write(path, content, 0o644)
                 changed = True
+                self._flush_pending = True
         for path in self.resolver.iterdir():
             if path.is_file() and not path.is_symlink() and path.name not in desired:
                 if path.read_bytes().startswith(MARKER.encode()):
                     path.unlink()
                     changed = True
+                    self._flush_pending = True
         current = self.hosts.read_bytes()
         updated = render(current.decode("utf-8", "surrogateescape"), hostnames).replace("\r\n", "\n").encode("utf-8", "surrogateescape")
         if current != updated:
@@ -70,9 +73,11 @@ class Backend:
                 atomic_write(backup, current)
             atomic_write(self.hosts, updated, self.hosts.stat().st_mode & 0o777)
             changed = True
-        if changed and self.flush:
+            self._flush_pending = True
+        if self._flush_pending and self.flush:
             for command in (["/usr/bin/dscacheutil", "-flushcache"], ["/usr/bin/killall", "-HUP", "mDNSResponder"]):
                 subprocess.run(command, check=True, capture_output=True, timeout=10)
+            self._flush_pending = False
         return changed
 
 
