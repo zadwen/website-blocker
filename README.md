@@ -8,11 +8,18 @@ The included Mac `.app` launches the dashboard. Private remote access uses Tails
 
 ---
 
-# Website Blocker 2.0 · by zadwen
+# Website Blocker 3.0.1 · by zadwen
 
 A Windows desktop tool for restricting websites and their domains. Local-only configuration,
 parent/admin PIN, scheduled blocking, and a background startup task. No browsing history collection,
 cloud account, subscription, or remote blocklist downloads.
+
+## Reliability update (3.0.1)
+
+This update preserves existing protection if both Windows settings files are lost,
+retries failed Mac DNS cache refreshes, and tightens hosts-entry and saved-rule validation.
+See [the changelog](CHANGELOG.md). The Windows EXE workflow now runs on pull requests,
+main-branch pushes, version tags, and manual runs; download its artifact after a successful build.
 
 ## What's new
 

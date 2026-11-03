@@ -12,6 +12,10 @@ from .winutil import IS_WINDOWS, run_hidden
 
 BEGIN_MARK = "# >>> WEBSITE-BLOCKER BEGIN"
 END_MARK = "# <<< WEBSITE-BLOCKER END"
+_HOSTNAME_RE = re.compile(
+    r"[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?"
+    r"(?:\.[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?)+"
+)
 _ENTRY_RE = re.compile(r"^(0\.0\.0\.0|::)\s+\S+$")
 
 
@@ -58,7 +62,7 @@ def build_block(hostnames):
     for h in sorted(set(hostnames)):
         from .rules import normalize_domain
         normalize_domain(h)  # reject newline / hosts injection at the write boundary
-        if any(c.isspace() for c in h) or ":" in h or "/" in h:
+        if not _HOSTNAME_RE.fullmatch(h) or len(h) > 253:
             raise ValueError("Invalid hosts entry")
         lines.append("0.0.0.0 " + h)
         lines.append(":: " + h)

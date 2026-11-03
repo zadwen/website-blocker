@@ -24,7 +24,7 @@ def validate(state):
         raise ValueError('Invalid settings version')
     if type(state.get('paused')) is not bool or not isinstance(state.get('rules'), list) or len(state['rules']) > 200:
         raise ValueError('Invalid settings or too many rules (maximum 200)')
-    seen = set()
+    seen, ids = set(), set()
     for rule in state['rules']:
         validate_rule(rule)
         if rule['mode'] == 'timer':
@@ -33,7 +33,10 @@ def validate(state):
                 raise ValueError('Invalid timer deadline')
         if rule['domain'] in seen:
             raise ValueError('Duplicate domain')
+        if rule['id'] in ids:
+            raise ValueError('Duplicate rule ID')
         seen.add(rule['domain'])
+        ids.add(rule['id'])
     return state
 
 
